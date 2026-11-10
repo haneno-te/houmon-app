@@ -107,7 +107,8 @@ W.DB = {
       alert('まだ送れていない変更があります。\n電波のある所で、上の印が「✓ 送信済み」になってからログアウトしてください。');
       return;
     }
-    if (!confirm('ログアウトしますか？\nこの端末に残したデータも消します（送信済みのデータはFirebaseに残ります）。')) return;
+    // Firestoreのデータには一切触らない。消すのは、この端末の中の一時的な写し（キャッシュ）だけ
+    if (!confirm('ログアウトしますか？\n\n・記録はすべてネット上（Firebase）に残ります。消えません。\n・この端末に一時的に置いている写しだけを片付けます。\n・もう一度ログインすれば、同じ記録がまた表示されます。')) return;
     loggingOut = true;
     unsubs.forEach(u => u());
     try { await terminate(db); await clearIndexedDbPersistence(db); }
