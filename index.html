@@ -619,6 +619,20 @@ svg .ax { font-size: 9px; fill: #64748b; }
 </div>
 
 <!-- Move / off modal -->
+<!-- やり残し：要対応から開く（記録する／休みにする） -->
+<div class="overlay" id="loOverlay">
+  <div class="modal" style="max-width:400px">
+    <div class="modal-x"><button onclick="closeOv('loOverlay')" title="閉じる">✕</button></div>
+    <div class="modal-title" id="loTitle"></div>
+    <div class="modal-sub" id="loSub"></div>
+    <div class="modal-actions">
+      <button class="btn btn-outline btn-block" id="loOffBtn" onclick="loOff()">💤 休みにする</button>
+      <button class="btn btn-primary btn-block" onclick="loRec()">📝 記録する</button>
+    </div>
+    <div class="hint" style="margin-top:10px">やり残しは「記録する」か「休みにする」で消えます。後ろに出ているのが、その日の予定です。</div>
+  </div>
+</div>
+
 <div class="overlay" id="moveOverlay">
   <div class="modal" style="max-width:400px">
     <div class="modal-x"><button onclick="tryClose('moveOverlay')" title="閉じる">✕</button></div>
@@ -1277,7 +1291,7 @@ function openTodo() {
   html += sec('🔴 すぐ対応（同意書・報告書）', cItems('high'));
   html += sec('🟠 要注意（同意書・報告書）', cItems('mid'));
   html += sec('🟠 要注意（患者の区）', T.noArea.map(p => item('mid', `closeOv('todoOverlay');openPatient('${p.id}')`, ptLabel(p), `${esc(p.id)}：区が空欄です。施術録で入力してください`)).join(''));
-  html += sec(`📝 やり残し（直近${LEFT_DAYS}日）`, T.lo.map(v => item('mid', `closeOv('todoOverlay');openRec('${v.id}')`, who(v.pid), `${md(v.date)} ${v.time}　${v.status === 'pending' ? '補足待ち' : '未記録'}`)).join(''));
+  html += sec(`📝 やり残し（直近${LEFT_DAYS}日）`, T.lo.map(v => item('mid', `openLeftover('${v.id}')`, who(v.pid), `${md(v.date)} ${v.time}　${v.status === 'pending' ? '補足待ち' : '未記録'}`)).join(''));
   html += sec('🖋 今月の押印日（各患者の最終訪問）', stampList().map(v => item('stamp', `closeOv('todoOverlay');setView('day','${v.date}')`, who(v.pid),
     `${md(v.date)} ${v.time}${v.date < t ? (isRecorded(v) ? '　✅ 済' : '　⚠️ 未記録') : v.date === t ? '　今日' : `　あと${daysBetween(t, v.date)}日`}`)).join(''));
   html += sec('🔵 お知らせ', cItems('low'));
@@ -1922,6 +1936,26 @@ function savePlan() {
 
 /* ───────── 振替・休み ───────── */
 let mvTarget = null;
+// 要対応のやり残し → その日の予定を出して、記録する／休みにする をすぐ押せる形で開く
+let loTarget = null;
+function openLeftover(id) {
+  const v = findVisit(id); if (!v) return;
+  closeOv('todoOverlay');
+  setView('day', v.date);
+  loTarget = id;
+  $('loTitle').innerHTML = `${md(v.date)} ${esc(v.time)}　${ptLabel(ptOf(v.pid))}`;
+  $('loSub').textContent = v.status === 'pending' ? '補足待ちです。記録の続きを書いてください。' : 'まだ記録していません。';
+  $('loOffBtn').style.display = v.status === 'planned' ? '' : 'none';   // 補足待ち（記録済み）は休みにしない
+  $('loOverlay').classList.add('open');
+}
+function loRec() { closeOv('loOverlay'); openRec(loTarget); }
+function loOff() {
+  const v = findVisit(loTarget); if (!v) return;
+  if (!confirm(`${ptText(ptOf(v.pid))}\n${md(v.date)} ${v.time}\n\nこの日は休みにしますか？`)) return;
+  mvTarget = { ...clone(v), fixed: ptOf(v.pid).slots.some(sl => sl.dow === pd(v.date).getDay()) };
+  closeOv('loOverlay');
+  doOff();
+}
 function openMove(id) {
   const v = findVisit(id); if (!v) return;
   mvTarget = { ...clone(v), fixed: ptOf(v.pid).slots.some(sl => sl.dow === pd(v.date).getDay()) };
@@ -2445,7 +2479,7 @@ document.body.addEventListener('touchend', e => {
   if (Math.abs(dx) > Math.abs(dy) && Math.abs(dx) > 50) step(dx < 0 ? 1 : -1);
 }, { passive:true });
 
-['planOverlay','moveOverlay','ptOverlay','setOverlay','todoOverlay','ppOverlay','impOverlay'].forEach(id =>
+['loOverlay','planOverlay','moveOverlay','ptOverlay','setOverlay','todoOverlay','ppOverlay','impOverlay'].forEach(id =>
   $(id).addEventListener('click', e => { if (e.target === $(id)) tryClose(id); }));
 $('dayPopupOverlay').addEventListener('click', e => { if (e.target === $('dayPopupOverlay')) closeDayPopup(); });
 $('wheelOverlay').addEventListener('click', e => { if (e.target === $('wheelOverlay')) closeWheel(); });
