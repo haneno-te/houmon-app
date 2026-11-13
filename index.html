@@ -653,6 +653,9 @@ svg .ax { font-size: 9px; fill: #64748b; }
       <div id="ptSlots"></div>
       <button class="btn btn-outline btn-sm" onclick="addSlot()">＋ 枠を追加</button>
     </div>
+    <div class="fg"><label class="flbl">固定枠の開始日（この日より前には、毎週の予定を出しません）</label>
+      <input type="date" class="fc" id="ptStart" style="max-width:200px">
+      <div class="hint">実際に訪問を始めた日、またはアプリで記録を始める日。空欄なら、過去にも予定が並びます。</div></div>
     <div class="modal-actions">
       <button class="btn btn-outline btn-block" onclick="tryClose('ptOverlay')">キャンセル</button>
       <button class="btn btn-primary btn-block" onclick="savePt()">保存</button>
@@ -1006,6 +1009,7 @@ function monthVisits(y, m) {
   for (let d = 1; d <= last; d++) {
     const dt = new Date(y, m-1, d), date = ds(dt), dow = dt.getDay();
     for (const p of S.patients) {
+      if (p.startDate && date < p.startDate) continue;   // 固定枠の開始日より前は、予定を作らない
       for (const sl of p.slots) {
         if (sl.dow !== dow) continue;
         const k = vkey(p.id, date);
@@ -1476,7 +1480,7 @@ function renderPatients(list) {
   if (!S.patients.length) { el.innerHTML = '<div style="color:var(--muted);font-size:13px">患者がいません</div>'; return; }
   el.innerHTML = S.patients.map(p => {
     const n = list.filter(v => v.pid === p.id && v.status !== 'off').length;
-    const slots = p.slots.slice().sort((a,b)=>a.dow-b.dow).map(s => `${DAYS[s.dow]} ${s.time}`).join('・') || '固定枠なし';
+    const slots = (p.slots.slice().sort((a,b)=>a.dow-b.dow).map(s => `${DAYS[s.dow]} ${s.time}`).join('・') || '固定枠なし') + (p.startDate ? `（${md(p.startDate)}〜）` : p.slots.length ? '（開始日なし）' : '');
     const st = consentState(p), al = consentAlerts(p).filter(x => x.lv !== 'low');
     return `<div class="tmpl-card" style="cursor:pointer;border-left:4px solid ${ptColor(p.id).c}" onclick="openPatient('${esc(p.id)}')">
       <div class="tmpl-card-hdr">
@@ -1969,7 +1973,7 @@ function openPatient(pid) {
 function renderPP() {
   const p = ptOf(ppId), st = consentState(p), r = st.r || {}, t = todayStr();
   const recs = Object.values(S.visits).filter(v => v.pid === p.id && isRecorded(v)).sort((a, b) => b.date.localeCompare(a.date));
-  const slots = p.slots.slice().sort((a, b) => a.dow - b.dow).map(x => `${DAYS[x.dow]} ${x.time}`).join('・') || '固定枠なし';
+  const slots = (p.slots.slice().sort((a, b) => a.dow - b.dow).map(x => `${DAYS[x.dow]} ${x.time}`).join('・') || '固定枠なし') + (p.startDate ? `（${md(p.startDate)}〜）` : '');
   let html = `<div class="modal-title">${ptLabel(p)} ${areaChip(p.area)} ${manualBadge(p)}</div>
     <div class="modal-sub">${esc(slots)}　${DB.histLoaded(p.id) ? `通算 <b>${recs.length}</b>回${recs.length ? `（初回 ${ymd(recs[recs.length - 1].date)}）` : ''}` : '記録を読み込み中…'}<button class="btn btn-outline btn-sm" style="padding:2px 10px" onclick="closeOv('ppOverlay');openPtModal('${esc(p.id)}')">✏️ 編集</button></div>`;
   html += consentAlerts(p).map(x => `<div class="todo-item lv-${x.lv}" style="cursor:default"><span>${esc(x.text)}</span></div>`).join('');
@@ -2075,6 +2079,7 @@ function openPtModal(id) {
   $('ptArea').value = p.area || '';
   ptExpiryHint();
   ptSlotsDraft = clone(p.slots);
+  $('ptStart').value = p.startDate || '';
   renderSlots();
   $('ptDelBtn').style.display = id ? '' : 'none';
   $('ptOverlay').classList.add('open');
@@ -2118,7 +2123,10 @@ async function savePt() {
   if (!imp && !cd && !confirm('同意日が入っていません。\n「要対応」に警告が出続けます。このまま保存しますか？')) return;
   if (!imp && cd && (cd > t || daysBetween(cd, t) > 365) && !confirm(`同意日 ${md(cd)} は、未来の日付か1年以上前です。\nこのまま保存しますか？`)) return;
   const old = editPtId ? ptOf(editPtId) : {};
+  const startDate = $('ptStart').value;
+  if (ptSlotsDraft.length && !startDate && !confirm('固定枠の開始日が空欄です。\n過去の日付にも予定が並び、「やり残し」に出ます。\nこのまま保存しますか？')) return;
   const p = { ...old, id, name, area:$('ptArea').value, consentDate:cd, slots:ptSlotsDraft, source: old.source || 'manual' };
+  if (startDate) p.startDate = startDate; else delete p.startDate;
   if (editPtId) {
     const i = S.patients.findIndex(x => x.id === editPtId);
     S.patients[i] = p;
