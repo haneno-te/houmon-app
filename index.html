@@ -1207,13 +1207,12 @@ function visitsOn(date) {
   return monthVisits(d.getFullYear(), d.getMonth()+1).filter(v => v.date === date)
     .sort((a, b) => (a.status === 'off') - (b.status === 'off') || cmpDate(a, b));
 }
-// やり残し：直近14日で、未記録・補足待ちのもの
-const LEFT_DAYS = 14;
+// やり残し：先月と今月の、過ぎた日で、未記録・補足待ちのもの（記録CSVは月ごとなので、月単位で漏れを残す）
 function leftovers() {
-  const t = todayStr(), from = addDays(t, -LEFT_DAYS), d = pd(t);
+  const t = todayStr(), d = pd(t);
   const prev = new Date(d.getFullYear(), d.getMonth() - 1, 1);
   return [...monthVisits(prev.getFullYear(), prev.getMonth()+1), ...monthVisits(d.getFullYear(), d.getMonth()+1)]
-    .filter(v => v.date < t && v.date >= from && (v.status === 'planned' || v.status === 'pending')).sort(cmpDate);
+    .filter(v => v.date < t && (v.status === 'planned' || v.status === 'pending')).sort(cmpDate);
 }
 
 /* ───────── 描画 ───────── */
@@ -1296,7 +1295,7 @@ function openTodo() {
   html += sec('🟠 要対応（同意書・報告書）', cItems('high'));
   html += sec('🟡 早めに（同意書・報告書）', cItems('mid'));
   html += sec('🟠 要注意（患者の区）', T.noArea.map(p => item('mid', `closeOv('todoOverlay');openPatient('${p.id}')`, ptLabel(p), `${esc(p.id)}：区が空欄です。施術録で入力してください`)).join(''));
-  html += sec(`📝 やり残し（直近${LEFT_DAYS}日）`, T.lo.map(v => item('mid', `openLeftover('${v.id}')`, who(v.pid), `${md(v.date)} ${v.time}　${v.status === 'pending' ? '補足待ち' : '未記録'}`)).join(''));
+  html += sec('📝 やり残し（先月と今月）', T.lo.map(v => item('mid', `openLeftover('${v.id}')`, who(v.pid), `${md(v.date)} ${v.time}　${v.status === 'pending' ? '補足待ち' : '未記録'}`)).join(''));
   html += sec('🖋 今月の押印日（各患者の最終訪問）', stampList().map(v => item('stamp', `closeOv('todoOverlay');setView('day','${v.date}')`, who(v.pid),
     `${md(v.date)} ${v.time}${v.date < t ? (isRecorded(v) ? '　✅ 済' : '　⚠️ 未記録') : v.date === t ? '　今日' : `　あと${daysBetween(t, v.date)}日`}`)).join(''));
   html += sec('🔵 お知らせ', cItems('low'));
