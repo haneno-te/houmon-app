@@ -336,10 +336,10 @@ textarea.fc { resize: vertical; min-height: 64px; font-family: inherit; line-hei
 .tl-blk.wk .tm { color: var(--muted); }
 .tl-blk.wk.half { box-shadow: inset 0 -3px 0 #dc2626; }
 /* 要対応バー（全画面で常に表示） */
-.alert-bar { margin-top: 8px; display: flex; align-items: center; gap: 8px; padding: 7px 12px; border-radius: 8px; font-size: 13px; font-weight: 700; cursor: pointer; }
+.alert-bar { margin-top: 6px; display: flex; align-items: center; gap: 8px; padding: 3px 10px; border-radius: 7px; font-size: 12px; font-weight: 600; cursor: pointer; }
 .alert-bar .ab-sub { font-weight: 600; font-size: 11px; opacity: .9; flex: 1; text-align: right; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.ab-high { background: #dc2626; color: #fff; }
-.ab-mid  { background: #f59e0b; color: #fff; }
+.ab-high { background: #dc2626; color: #fff; font-weight: 700; padding: 5px 10px; font-size: 13px; }
+.ab-mid  { background: #fef3c7; color: #92400e; border: 1px solid #fcd34d; }
 .ab-ok   { background: #dcfce7; color: #166534; }
 .todo-sec { margin-bottom: 14px; }
 .todo-sec h4 { font-size: 12px; margin-bottom: 6px; }
@@ -1126,7 +1126,7 @@ const PHASE_LABEL = { normal:'平常', notice:'予告（来月が作業月）', 
 // 予防の警告
 function consentAlerts(p) {
   const t = todayStr(), st = consentState(p), A = [];
-  const a = (lv, text) => A.push({ lv, pid: p.id, text });
+  const a = (lv, text, urgent = false) => A.push({ lv, pid: p.id, text, urgent });
   if (st.none) { a('high', isImported(p) ? '同意日が施術録から届いていません' : '同意日が入っていません'); return A; }
   const r = st.r;
   // 検算：施術録の同意期限と、同意日からの計算を比べる
@@ -1136,7 +1136,7 @@ function consentAlerts(p) {
     else if (p.consentExpiry !== calc) a('mid', `同意期限が計算と違います。施術録 ${ymd(p.consentExpiry)}／計算 ${ymd(calc)}。施術録の値を使っています`);
   }
   if (st.odd) a('high', `同意日（${md(p.consentDate)}）を確認してください：未来の日付、または1年以上前です`);
-  if (st.phase === 'expired' && !r.handedAt) a('high', `同意期限（${md(st.expiry)}）が切れています`);
+  if (st.phase === 'expired' && !r.handedAt) a('high', `同意期限（${md(st.expiry)}）が切れています`, true);
   // 次回診察日（受診日）：予告の月から入力を求める。予告の月はオレンジ、作業月からは赤
   if (!r.examDate && !r.handedAt && st.phase !== 'normal')
     a(st.phase === 'notice' ? 'mid' : 'high', st.phase === 'notice'
@@ -1146,14 +1146,15 @@ function consentAlerts(p) {
   const active = ['work', 'expMonth', 'expired'].includes(st.phase) || st.stage >= 2;
   if (active && !r.handedAt) {
     if (!r.examDate) { /* 上で警告済み */ }
-    else if (r.examDate < t) a('high', `次回診察日（${md(r.examDate)}）を過ぎましたが、手渡しが済んでいません`);
+    else if (r.examDate < t) a('high', `次回診察日（${md(r.examDate)}）を過ぎましたが、手渡しが済んでいません`, true);
     else if (!st.handoff) a('high', `★ 次回診察日（${md(r.examDate)}）より前に訪問予定がありません。書類を手渡しできません`);
     else if (!r.preparedAt) {
       const n = daysBetween(t, st.handoff);
-      if (n <= 7) a(n <= 2 ? 'high' : 'mid', `手渡し日 ${md(st.handoff)}（${n === 0 ? '今日' : 'あと' + n + '日'}）。報告書と依頼書の準備がまだです`);
+      if (n <= 7) a(n <= 2 ? 'high' : 'mid', `手渡し日 ${md(st.handoff)}（${n === 0 ? '今日' : 'あと' + n + '日'}）。報告書と依頼書の準備がまだです`, n === 0);
     }
+    else if (st.handoff === t) a('high', `今日は書類の手渡し日です（次回診察日 ${md(r.examDate)}）。報告書と依頼書を持っていきます`, true);
   }
-  if (r.handedAt) a(st.phase === 'expired' ? 'high' : 'low', `新しい同意書の受け取り待ち（${md(r.handedAt)} 手渡し・期限 ${md(st.expiry)}）`);
+  if (r.handedAt) a(st.phase === 'expired' ? 'high' : 'low', `新しい同意書の受け取り待ち（${md(r.handedAt)} 手渡し・期限 ${md(st.expiry)}）`, st.phase === 'expired');
   // 期限を過ぎた日の訪問予定（2週間以内に迫ったもの）
   const after = visitsRange(addDays(st.expiry, 1), addDays(t, 14)).filter(v => v.pid === p.id);
   if (after.length) a('high', `同意期限 ${md(st.expiry)} を過ぎた日に訪問予定があります：${md(after[0].date)}（あと${daysBetween(t, after[0].date)}日）。新しい同意書の受け取りが必要です`);
@@ -1258,6 +1259,7 @@ function stampList() {   // 今月の押印日（各患者の最終訪問）
   const t = todayStr(), d = pd(t);
   return monthVisits(d.getFullYear(), d.getMonth() + 1).filter(v => v.isLast && v.status !== 'off').sort(cmpDate);
 }
+const alertLv = x => x.urgent ? 'high' : x.lv === 'high' ? 'mid' : x.lv;
 function collectTodo() {
   const consent = S.patients.flatMap(consentAlerts);
   const lo = leftovers();
@@ -1265,7 +1267,7 @@ function collectTodo() {
   const stamps = stampList().filter(v => v.date >= t && daysBetween(t, v.date) <= 7);
   // 施術録から取り込んだのに区が空欄の患者（取り込みは止めず「未設定」で受け付けている）
   const noArea = S.patients.filter(p => isImported(p) && !p.area);
-  return { consent, lo, stamps, noArea,
+  return { consent, lo, stamps, noArea, urgent: consent.filter(x => x.urgent).length,
     high: consent.filter(x => x.lv === 'high').length,
     mid: consent.filter(x => x.lv === 'mid').length + lo.length + noArea.length };
 }
@@ -1277,8 +1279,9 @@ function renderAlertBar() {
   if (T.lo.length) sub.push(`やり残し ${T.lo.length}`);
   if (T.noArea.length) sub.push(`区空欄 ${T.noArea.length}`);
   if (T.stamps.length) sub.push(`🖋押印 7日内 ${T.stamps.length}`);
-  el.className = 'alert-bar ' + (T.high ? 'ab-high' : n ? 'ab-mid' : 'ab-ok');
-  el.innerHTML = n ? `<span>⚠️ 要対応 ${n}件</span><span class="ab-sub">${sub.join('・')} ›</span>`
+  el.className = 'alert-bar ' + (T.urgent ? 'ab-high' : n ? 'ab-mid' : 'ab-ok');
+  el.innerHTML = T.urgent ? `<span>🔴 今すぐ ${T.urgent}件</span><span class="ab-sub">要対応 ${n}件・${sub.join('・')} ›</span>`
+    : n ? `<span>要対応 ${n}件</span><span class="ab-sub">${sub.join('・')} ›</span>`
     : `<span>✓ 要対応なし</span><span class="ab-sub">${sub.join('・')} ›</span>`;
 }
 function openTodo() {
@@ -1286,10 +1289,12 @@ function openTodo() {
   const who = pid => ptLabel(ptOf(pid));
   const item = (lv, onclick, whoHtml, text) => `<div class="todo-item lv-${lv}" onclick="${onclick}"><span class="who">${whoHtml}</span><span>${text}</span></div>`;
   const sec = (title, html) => html ? `<div class="todo-sec"><h4>${title}</h4>${html}</div>` : '';
-  const cItems = lv => T.consent.filter(x => x.lv === lv).map(x => item(lv, `closeOv('todoOverlay');openPatient('${x.pid}')`, who(x.pid), esc(x.text))).join('');
+  const cItem = x => item(alertLv(x), `closeOv('todoOverlay');openPatient('${x.pid}')`, who(x.pid), esc(x.text));
+  const cItems = lv => T.consent.filter(x => !x.urgent && x.lv === lv).map(cItem).join('');
   let html = '';
-  html += sec('🔴 すぐ対応（同意書・報告書）', cItems('high'));
-  html += sec('🟠 要注意（同意書・報告書）', cItems('mid'));
+  html += sec('🔴 今すぐ（期限切れ・手渡し日）', T.consent.filter(x => x.urgent).map(cItem).join(''));
+  html += sec('🟠 要対応（同意書・報告書）', cItems('high'));
+  html += sec('🟡 早めに（同意書・報告書）', cItems('mid'));
   html += sec('🟠 要注意（患者の区）', T.noArea.map(p => item('mid', `closeOv('todoOverlay');openPatient('${p.id}')`, ptLabel(p), `${esc(p.id)}：区が空欄です。施術録で入力してください`)).join(''));
   html += sec(`📝 やり残し（直近${LEFT_DAYS}日）`, T.lo.map(v => item('mid', `openLeftover('${v.id}')`, who(v.pid), `${md(v.date)} ${v.time}　${v.status === 'pending' ? '補足待ち' : '未記録'}`)).join(''));
   html += sec('🖋 今月の押印日（各患者の最終訪問）', stampList().map(v => item('stamp', `closeOv('todoOverlay');setView('day','${v.date}')`, who(v.pid),
@@ -2010,7 +2015,7 @@ function renderPP() {
   const slots = (p.slots.slice().sort((a, b) => a.dow - b.dow).map(x => `${DAYS[x.dow]} ${x.time}`).join('・') || '固定枠なし') + (p.startDate ? `（${md(p.startDate)}〜）` : '');
   let html = `<div class="modal-title">${ptLabel(p)} ${areaChip(p.area)} ${manualBadge(p)}</div>
     <div class="modal-sub">${esc(slots)}　${DB.histLoaded(p.id) ? `通算 <b>${recs.length}</b>回${recs.length ? `（初回 ${ymd(recs[recs.length - 1].date)}）` : ''}` : '記録を読み込み中…'}<button class="btn btn-outline btn-sm" style="padding:2px 10px" onclick="closeOv('ppOverlay');openPtModal('${esc(p.id)}')">✏️ 編集</button></div>`;
-  html += consentAlerts(p).map(x => `<div class="todo-item lv-${x.lv}" style="cursor:default"><span>${esc(x.text)}</span></div>`).join('');
+  html += consentAlerts(p).map(x => `<div class="todo-item lv-${alertLv(x)}" style="cursor:default"><span>${esc(x.text)}</span></div>`).join('');
 
   // 同意書・施術報告書
   html += `<div class="pp-card"><h4>📄 同意書・施術報告書</h4>`;
