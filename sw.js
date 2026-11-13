@@ -1,6 +1,6 @@
 // 電波がない時もアプリを開けるようにする（画面のファイルとFirebaseの部品を端末に残す）
 // データそのもの（Firestore）はここでは扱わない
-const CACHE = 'houmon-v2';
+const CACHE = 'houmon-v3';
 const SDK = 'https://www.gstatic.com/firebasejs/13.1.0/';
 const FILES = ['./', './index.html', './db.js', './manifest.json',
   SDK + 'firebase-app.js', SDK + 'firebase-auth.js', SDK + 'firebase-firestore.js'];
