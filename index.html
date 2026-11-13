@@ -1628,7 +1628,7 @@ function openRec(id) {
 }
 function renderCourse(prevCourse) {
   $('recCourse').innerHTML = S.master.courses.map((c, i) =>
-    `<div class="radio-opt${c === prevCourse ? ' was' : ''}"><input type="radio" name="course" id="co${i}" value="${esc(c)}" ${draft.course === c ? 'checked' : ''} onchange="draft.course=this.value"><label for="co${i}">${esc(c)}</label></div>`
+    `<div class="radio-opt${c === prevCourse ? ' was' : ''}"><input type="radio" name="course" id="co${i}" value="${esc(c)}" ${draft.course === c ? 'checked' : ''} onclick="if (draft.course === this.value) { this.checked = false; draft.course = ''; } else draft.course = this.value"><label for="co${i}">${esc(c)}</label></div>`
   ).join('');
 }
 function renderTr() {
